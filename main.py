@@ -24,35 +24,24 @@ cur.execute("CREATE TABLE IF NOT EXISTS methods (name TEXT)")
 db.commit()
 
 # ================= UTILS =================
-def is_admin(uid):
-    return uid in ADMINS
-
-def user(uid):
-    cur.execute("INSERT OR IGNORE INTO users VALUES (?,?)", (uid, 0))
-    db.commit()
-
-# ================= CHANNEL UI =================
 def send_channels(uid):
     kb = types.InlineKeyboardMarkup(row_width=2)
 
-    chs = cur.execute("SELECT username FROM channels").fetchall()
+    channels = cur.execute("SELECT username FROM channels").fetchall()
 
-    for c in chs:
-        try:
-            bot.get_chat(c[0])
-            kb.add(types.InlineKeyboardButton("Join", url=f"https://t.me/{c[0][1:]}"))
-        except:
-            cur.execute("DELETE FROM channels WHERE username=?", (c[0],))
-            db.commit()
+    for (ch,) in channels:
+        if ch.startswith("@"):
+            url = f"https://t.me/{ch[1:]}"
+        else:
+            url = ch
 
-    for fc in FIXED_CHANNELS:
-        kb.add(types.InlineKeyboardButton("Join", url=f"https://t.me/{fc[1:]}"))
+        kb.add(types.InlineKeyboardButton("Join", url=url))
 
-    kb.add(types.InlineKeyboardButton("✅ Joined", callback_data="check"))
+    kb.add(types.InlineKeyboardButton("✅ Joined", callback_data="check_join"))
 
     bot.send_message(
         uid,
-        "🚨 Please join all required channels before using the bot!",
+        "🚨 Please join all the required channels before using the bot!",
         reply_markup=kb
     )
 
@@ -109,12 +98,27 @@ def add_channel(m):
     bot.register_next_step_handler(msg, save_channel)
 
 def save_channel(m):
-    if not m.text.startswith("@"):
-        bot.send_message(m.chat.id, "❌ Invalid username")
+    text = m.text.strip()
+
+    if text.startswith("@"):
+        channel = text                     # public channel
+
+    elif text.startswith("https://t.me/+"):
+        channel = text                     # private channel
+
+    elif text.startswith("https://t.me/addlist/"):
+        channel = text                     # folder / addlist
+
+    else:
+        bot.send_message(
+            m.chat.id,
+            "❌ Send:\n@channel\nor private link\nor addlist folder link"
+        )
         return
-    cur.execute("INSERT INTO channels VALUES (?)", (m.text,))
+
+    cur.execute("INSERT INTO channels VALUES (?)", (channel,))
     db.commit()
-    bot.send_message(m.chat.id, "✅ Channel added")
+    bot.send_message(m.chat.id, "✅ Channel / Folder added")
 
 # ================= ADD METHOD =================
 @bot.message_handler(func=lambda m: m.text == "➕ Add Method")
