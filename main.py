@@ -11,7 +11,7 @@ METHOD_COST = 7
 INVITE_REWARD = 1
 
 # Fixed mandatory channels (bot MUST be admin)
-STRICT_CHANNELS = ["@jndtech1", "@jndtech1"]
+STRICT_CHANNELS = ["@junaidniz110", "@jndtech1"]
 
 bot = telebot.TeleBot(TOKEN)
 
