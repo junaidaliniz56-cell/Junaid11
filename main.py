@@ -3,8 +3,7 @@ from telebot import types
 import sqlite3
 
 # ========== CONFIG ==========
-TOKEN =
-"8380662421:AAEP9BOevEPJ5CDDwYesgbkNns4bi4bwrH0"
+TOKEN ="8380662421:AAEP9BOevEPJ5CDDwYesgbkNns4bi4bwrH0"
 ADMINS = [7011937754]
 
 METHOD_COST = 7
