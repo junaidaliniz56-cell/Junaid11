@@ -17,7 +17,7 @@ db.commit()
 
 # ===== FIXED CHANNELS (BOT ADMIN HERE) =====
 FIXED_CHANNELS = [
-    "@jndtech",
+    "@jndtech1",
     "@jndtech1"
 ]
 
