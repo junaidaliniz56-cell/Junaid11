@@ -10,7 +10,7 @@ INVITE_REWARD = 1
 
 # FORCE JOIN CHANNELS (BOT ADMIN HONA ZARURI)
 FORCE_CHANNELS = [
-    "https://t.me/jndtech",
+    "https://t.me/junaidniz110",
     "https://t.me/jndtech1"
 ]
 
