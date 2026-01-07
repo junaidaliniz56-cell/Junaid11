@@ -1,35 +1,55 @@
 import telebot
+from telebot import types
 import sqlite3
+import re
 
 # ============ CONFIG ============
-TOKEN = "8380662421:AAEP9BOevEPJ5CDDwYesgbkNns4bi4bwrH0"   # ⚠️ testing token
+TOKEN = "8380662421:AAEP9BOevEPJ5CDDwYesgbkNns4bi4bwrH0"  # testing only
 ADMINS = [7011937754]
+
 INVITE_REWARD = 1
 METHOD_COST = 7
 
-bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
+bot = telebot.TeleBot(TOKEN)
 
 # ============ DATABASE ============
-conn = sqlite3.connect("database.db", check_same_thread=False)
-c = conn.cursor()
+db = sqlite3.connect("data.db", check_same_thread=False)
+cur = db.cursor()
 
-c.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, points INTEGER DEFAULT 0)")
-c.execute("CREATE TABLE IF NOT EXISTS methods (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT)")
-c.execute("CREATE TABLE IF NOT EXISTS channels (channel TEXT)")
-conn.commit()
+cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, points INTEGER)")
+cur.execute("CREATE TABLE IF NOT EXISTS methods (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT)")
+cur.execute("CREATE TABLE IF NOT EXISTS channels (username TEXT UNIQUE)")
+db.commit()
+
+# ============ STATE ============
+admin_state = {}
+
+# ============ KEYBOARDS ============
+def main_menu():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🧠 Get Method")
+    kb.add("🔗 Referral", "👤 Account")
+    return kb
+
+def admin_keyboard():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("➕ Add Method", "📂 Methods")
+    kb.add("➕ Add Channel", "📢 Channels")
+    kb.add("❌ Close")
+    return kb
 
 # ============ HELPERS ============
 def is_admin(uid):
     return uid in ADMINS
 
 def get_points(uid):
-    c.execute("SELECT points FROM users WHERE user_id=?", (uid,))
-    r = c.fetchone()
+    cur.execute("SELECT points FROM users WHERE id=?", (uid,))
+    r = cur.fetchone()
     return r[0] if r else 0
 
 def check_join(uid):
-    c.execute("SELECT channel FROM channels")
-    for (ch,) in c.fetchall():
+    cur.execute("SELECT username FROM channels")
+    for (ch,) in cur.fetchall():
         try:
             m = bot.get_chat_member(ch, uid)
             if m.status not in ["member", "administrator", "creator"]:
@@ -40,146 +60,196 @@ def check_join(uid):
 
 # ============ START ============
 @bot.message_handler(commands=["start"])
-def start(msg):
-    uid = msg.from_user.id
-    args = msg.text.split()
+def start(m):
+    uid = m.from_user.id
+    args = m.text.split()
 
-    c.execute("SELECT * FROM users WHERE user_id=?", (uid,))
-    if not c.fetchone():
-        c.execute("INSERT INTO users(user_id, points) VALUES (?,0)", (uid,))
+    cur.execute("SELECT * FROM users WHERE id=?", (uid,))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO users VALUES (?,0)", (uid,))
         if len(args) > 1:
             ref = int(args[1])
-            c.execute("UPDATE users SET points = points + ? WHERE user_id=?", (INVITE_REWARD, ref))
-        conn.commit()
+            cur.execute("UPDATE users SET points = points + ? WHERE id=?", (INVITE_REWARD, ref))
+        db.commit()
 
-    bot.reply_to(
-        msg,
-        f"👋 Welcome\n\n"
-        f"💰 Points: {get_points(uid)}\n"
-        f"👥 Invite = +1 Point\n"
-        f"🧠 Method = 7 Points\n\n"
-        f"/account\n/methods"
+    bot.send_message(
+        m.chat.id,
+        "✅ Verified!\n\nWelcome to Method Bot",
+        reply_markup=main_menu()
     )
 
 # ============ ACCOUNT ============
-@bot.message_handler(commands=["account"])
-def account(msg):
-    uid = msg.from_user.id
+@bot.message_handler(func=lambda m: m.text == "👤 Account")
+def account(m):
+    uid = m.from_user.id
     link = f"https://t.me/{bot.get_me().username}?start={uid}"
-    bot.reply_to(
-        msg,
-        f"👤 ID: {uid}\n"
+    bot.send_message(
+        m.chat.id,
+        f"🆔 ID: {uid}\n"
         f"💰 Points: {get_points(uid)}\n\n"
         f"🔗 Referral Link:\n{link}"
     )
 
-# ============ METHODS ============
-@bot.message_handler(commands=["methods"])
-def methods(msg):
-    c.execute("SELECT id,title FROM methods")
-    rows = c.fetchall()
-    if not rows:
-        bot.reply_to(msg, "❌ No methods available")
-        return
+# ============ REFERRAL ============
+@bot.message_handler(func=lambda m: m.text == "🔗 Referral")
+def referral(m):
+    uid = m.from_user.id
+    link = f"https://t.me/{bot.get_me().username}?start={uid}"
+    bot.send_message(
+        m.chat.id,
+        f"Invite friends & earn +{INVITE_REWARD} point 🎁\n\n{link}"
+    )
 
-    text = "📚 Method List:\n\n"
-    for i,t in rows:
-        text += f"{i}. {t}\n"
-    text += "\nUse: /getmethod ID"
-    bot.reply_to(msg, text)
-
-@bot.message_handler(commands=["getmethod"])
-def getmethod(msg):
-    uid = msg.from_user.id
-    args = msg.text.split()
+# ============ GET METHOD ============
+@bot.message_handler(func=lambda m: m.text == "🧠 Get Method")
+def get_method(m):
+    uid = m.from_user.id
 
     if not check_join(uid):
-        bot.reply_to(msg, "❗ Join required channels first")
+        cur.execute("SELECT username FROM channels")
+        txt = "❗ Join all channels first:\n\n"
+        for (c,) in cur.fetchall():
+            txt += f"{c}\n"
+        bot.send_message(m.chat.id, txt)
         return
 
     if get_points(uid) < METHOD_COST:
-        bot.reply_to(msg, "❌ Not enough points")
+        bot.send_message(m.chat.id, "❌ Not enough points")
         return
 
-    if len(args) < 2:
-        bot.reply_to(msg, "Use: /getmethod ID")
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    cur.execute("SELECT id,title FROM methods")
+    for i,t in cur.fetchall():
+        kb.add(f"{i}. {t}")
+    kb.add("🔙 Back")
+
+    bot.send_message(
+        m.chat.id,
+        f"Select method (Cost: {METHOD_COST} points)",
+        reply_markup=kb
+    )
+
+# ============ OPEN METHOD ============
+@bot.message_handler(func=lambda m: "." in m.text)
+def open_method(m):
+    uid = m.from_user.id
+    try:
+        mid = int(m.text.split(".")[0])
+    except:
         return
 
-    mid = int(args[1])
-    c.execute("SELECT content FROM methods WHERE id=?", (mid,))
-    r = c.fetchone()
+    cur.execute("SELECT content FROM methods WHERE id=?", (mid,))
+    r = cur.fetchone()
     if not r:
-        bot.reply_to(msg, "❌ Method not found")
         return
 
-    c.execute("UPDATE users SET points = points - ? WHERE user_id=?", (METHOD_COST, uid))
-    conn.commit()
-    bot.reply_to(msg, f"✅ Method Unlocked:\n\n{r[0]}")
+    cur.execute("UPDATE users SET points = points - ? WHERE id=?", (METHOD_COST, uid))
+    db.commit()
 
-# ============ ADMIN ============
-@bot.message_handler(commands=["addmethod"])
-def addmethod(msg):
-    if not is_admin(msg.from_user.id):
-        return
-    data = msg.text.split("|",2)
-    if len(data) < 3:
-        bot.reply_to(msg, "Use:\n/addmethod | Title | Content")
-        return
-    c.execute("INSERT INTO methods(title,content) VALUES (?,?)",(data[1],data[2]))
-    conn.commit()
-    bot.reply_to(msg, "✅ Method Added")
+    bot.send_message(
+        m.chat.id,
+        f"✅ Method Unlocked:\n\n{r[0]}",
+        reply_markup=main_menu()
+    )
 
-@bot.message_handler(commands=["addchannel"])
-def addchannel(msg):
-    if not is_admin(msg.from_user.id):
-        return
-    c.execute("INSERT INTO channels VALUES (?)",(msg.text.split()[1],))
-    conn.commit()
-    bot.reply_to(msg, "✅ Channel Added")
+# ============ BACK ============
+@bot.message_handler(func=lambda m: m.text == "🔙 Back")
+def back(m):
+    bot.send_message(m.chat.id, "Main Menu", reply_markup=main_menu())
 
-@bot.message_handler(commands=["addpoints"])
-def addpoints(msg):
-    if not is_admin(msg.from_user.id):
+# ============ ADMIN PANEL ============
+@bot.message_handler(commands=["admin"])
+def admin(m):
+    if not is_admin(m.from_user.id):
         return
-    _,uid,pts = msg.text.split()
-    c.execute("UPDATE users SET points = points + ? WHERE user_id=?",(int(pts),int(uid)))
-    conn.commit()
-    bot.reply_to(msg, "✅ Points Added")
+    bot.send_message(m.chat.id, "🛠 Admin Panel", reply_markup=admin_keyboard())
 
-@bot.message_handler(commands=["cutpoints"])
-def cutpoints(msg):
-    if not is_admin(msg.from_user.id):
+# ============ ADMIN BUTTONS ============
+@bot.message_handler(func=lambda m: m.text in ["➕ Add Method", "➕ Add Channel"])
+def admin_buttons(m):
+    if not is_admin(m.from_user.id):
         return
-    _,uid,pts = msg.text.split()
-    c.execute("UPDATE users SET points = points - ? WHERE user_id=?",(int(pts),int(uid)))
-    conn.commit()
-    bot.reply_to(msg, "✅ Points Cut")
 
-# ============ BROADCAST ============
-@bot.message_handler(commands=["broadcast"])
-def broadcast(msg):
-    if not is_admin(msg.from_user.id):
-        return
-    text = msg.text.replace("/broadcast","")
-    c.execute("SELECT user_id FROM users")
-    for (u,) in c.fetchall():
+    admin_state[m.from_user.id] = m.text
+
+    if m.text == "➕ Add Method":
+        bot.send_message(m.chat.id, "Send:\nTitle | Full method text")
+
+    elif m.text == "➕ Add Channel":
+        bot.send_message(
+            m.chat.id,
+            "Send only:\n✔ @channelname\n✔ https://t.me/channelname"
+        )
+
+# ============ ADMIN INPUT ============
+@bot.message_handler(func=lambda m: m.from_user.id in admin_state)
+def admin_input(m):
+    uid = m.from_user.id
+    action = admin_state.pop(uid)
+
+    if action == "➕ Add Method":
         try:
-            bot.send_message(u, text)
+            t,c = m.text.split("|",1)
+            cur.execute("INSERT INTO methods(title,content) VALUES (?,?)",(t.strip(),c.strip()))
+            db.commit()
+            bot.send_message(uid, "✅ Method Added", reply_markup=admin_keyboard())
         except:
-            pass
-    bot.reply_to(msg, "✅ Broadcast Sent")
+            bot.send_message(uid, "❌ Wrong format", reply_markup=admin_keyboard())
 
-@bot.message_handler(commands=["fwd"])
-def fwd(msg):
-    if not is_admin(msg.from_user.id):
-        return
-    c.execute("SELECT user_id FROM users")
-    for (u,) in c.fetchall():
+    elif action == "➕ Add Channel":
+        text = m.text.strip()
+        if re.match(r"^@[A-Za-z0-9_]{5,32}$", text):
+            ch = text
+        elif re.match(r"^https://t\.me/[A-Za-z0-9_]{5,32}$", text):
+            ch = "@"+text.split("/")[-1]
+        else:
+            bot.send_message(uid, "❌ Invalid Channel", reply_markup=admin_keyboard())
+            return
+
         try:
-            bot.forward_message(u, msg.chat.id, msg.message_id)
+            cur.execute("INSERT INTO channels(username) VALUES (?)",(ch,))
+            db.commit()
+            bot.send_message(uid, f"✅ Channel Added:\n{ch}", reply_markup=admin_keyboard())
         except:
-            pass
+            bot.send_message(uid, "⚠ Channel Exists", reply_markup=admin_keyboard())
+
+# ============ LIST METHODS ============
+@bot.message_handler(func=lambda m: m.text == "📂 Methods")
+def list_methods(m):
+    if not is_admin(m.from_user.id):
+        return
+    cur.execute("SELECT id,title FROM methods")
+    txt = "📂 Methods:\n\n"
+    for i,t in cur.fetchall():
+        txt += f"{i}. {t}\n"
+    bot.send_message(m.chat.id, txt, reply_markup=admin_keyboard())
+
+# ============ LIST & DELETE CHANNELS ============
+@bot.message_handler(func=lambda m: m.text == "📢 Channels")
+def list_channels(m):
+    if not is_admin(m.from_user.id):
+        return
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    cur.execute("SELECT username FROM channels")
+    for (c,) in cur.fetchall():
+        kb.add(f"❌ Delete {c}")
+    kb.add("❌ Close")
+    bot.send_message(m.chat.id, "📢 Channels (tap to delete)", reply_markup=kb)
+
+@bot.message_handler(func=lambda m: m.text.startswith("❌ Delete "))
+def delete_channel(m):
+    if not is_admin(m.from_user.id):
+        return
+    ch = m.text.replace("❌ Delete ","")
+    cur.execute("DELETE FROM channels WHERE username=?", (ch,))
+    db.commit()
+    bot.send_message(m.chat.id, f"🗑 Deleted {ch}", reply_markup=admin_keyboard())
+
+# ============ CLOSE ============
+@bot.message_handler(func=lambda m: m.text == "❌ Close")
+def close(m):
+    bot.send_message(m.chat.id, "Closed", reply_markup=main_menu())
 
 # ============ RUN ============
-print("🤖 TeleBot is running...")
+print("🤖 Bot running successfully...")
 bot.infinity_polling()
