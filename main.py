@@ -1,239 +1,209 @@
-import telebot
+import telebot, os, json
 from telebot import types
-import sqlite3
 
-# ================= CONFIG =================
-TOKEN = "8380662421:AAEP9BOevEPJ5CDDwYesgbkNns4bi4bwrH0"
-ADMINS = [7011937754]     # your Telegram numeric ID
-METHOD_COST = 7
-INVITE_REWARD = 1
+BOT_TOKEN = "8546188939:AAGCchjT0fnBRmgeKVz87S1i7cIkhVOfZHI"
+ADMINS = [7011937754]
 
-# Fixed force-join channels (BOT MUST BE ADMIN HERE)
-FORCE_CHANNELS = [
-    "@junaidniz110",
-    "@jndtech1"
-]
-# =========================================
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 
-bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
-db = sqlite3.connect("data.db", check_same_thread=False)
-cur = db.cursor()
+DATA_FILE = "numbers.json"
+CHANNEL_FILE = "channels.json"
+STATE = {}
 
-# ================= DATABASE =================
-cur.execute("""CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY,
-    points INTEGER DEFAULT 0,
-    ref INTEGER
-)""")
+def load(path, default):
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return default
 
-cur.execute("""CREATE TABLE IF NOT EXISTS methods (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT
-)""")
+def save(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
-cur.execute("""CREATE TABLE IF NOT EXISTS channels (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    link TEXT
-)""")
-db.commit()
-# ===========================================
+NUMBERS = load(DATA_FILE, {})
+CHANNELS = load(CHANNEL_FILE, [])
 
-# ================= HELPERS =================
-def is_admin(uid):
-    return uid in ADMINS
+def is_admin(uid): return uid in ADMINS
+def flag(c): return "🌍"
 
-def get_user(uid, ref=None):
-    u = cur.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-    if not u:
-        cur.execute("INSERT INTO users (id, points, ref) VALUES (?, ?, ?)", (uid, 0, ref))
-        db.commit()
-        if ref and ref != uid:
-            cur.execute("UPDATE users SET points = points + ? WHERE id=?", (INVITE_REWARD, ref))
-            db.commit()
-    return cur.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-
-def add_points(uid, p):
-    cur.execute("UPDATE users SET points = points + ? WHERE id=?", (p, uid))
-    db.commit()
-
-def cut_points(uid, p):
-    cur.execute("UPDATE users SET points = points - ? WHERE id=?", (p, uid))
-    db.commit()
-
-def is_joined(uid):
-    for ch in FORCE_CHANNELS:
+# ================= JOIN CHECK =================
+def check_join(uid):
+    required_channels = ["@Junaidniz", "@jndtech1"]
+    for ch in required_channels:
         try:
-            st = bot.get_chat_member(ch, uid).status
-            if st in ["left", "kicked"]:
+            m = bot.get_chat_member(ch, uid)
+            if m.status not in ["member", "administrator", "creator"]:
                 return False
         except:
             return False
     return True
-# ===========================================
-
-# ================= KEYBOARDS =================
-def user_kb():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🔥 Get Method")
-    kb.add("👤 Account", "👥 Referral")
-    return kb
-
-def admin_kb():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("➕ Add Channel", "📋 Channel List")
-    kb.add("➕ Add Method", "❌ Delete Method")
-    kb.add("➕ Add Points")
-    kb.add("❌ Close")
-    return kb
-# ===========================================
 
 # ================= START =================
 @bot.message_handler(commands=["start"])
 def start(m):
-    ref = None
-    if len(m.text.split()) > 1:
-        ref = int(m.text.split()[1])
-    get_user(m.from_user.id, ref)
-
-    kb = types.InlineKeyboardMarkup()
-    for ch in FORCE_CHANNELS:
-        kb.add(types.InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{ch.replace('@','')}"))
-    kb.add(types.InlineKeyboardButton("✅ Join Check", callback_data="join_check"))
-
-    bot.send_message(
-        m.chat.id,
-        "🚫 <b>Pehlay dono channels join karo</b>",
-        reply_markup=kb
-    )
-# ===========================================
-
-@bot.callback_query_handler(func=lambda c: c.data == "join_check")
-def join_check(c):
-    if not is_joined(c.from_user.id):
-        bot.answer_callback_query(c.id, "❌ Pehlay channels join karo", show_alert=True)
-        return
-    bot.edit_message_text("✅ <b>Join verified</b>", c.message.chat.id, c.message.message_id)
-    bot.send_message(c.from_user.id, "🎉 Welcome", reply_markup=user_kb())
-
-# ================= USER =================
-@bot.message_handler(func=lambda m: m.text == "👤 Account")
-def acc(m):
-    u = get_user(m.from_user.id)
-    bot.send_message(
-        m.chat.id,
-        f"👤 <b>Account</b>\n\n"
-        f"🆔 ID: <code>{u[0]}</code>\n"
-        f"💰 Points: <b>{u[1]}</b>"
-    )
-
-@bot.message_handler(func=lambda m: m.text == "👥 Referral")
-def ref(m):
-    bot.send_message(
-        m.chat.id,
-        f"👥 <b>Invite & Earn</b>\n\n"
-        f"Invite link:\n"
-        f"https://t.me/{bot.get_me().username}?start={m.from_user.id}\n\n"
-        f"🎁 Per invite: {INVITE_REWARD} Point"
-    )
-# ===========================================
-
-# ================= METHODS =================
-@bot.message_handler(func=lambda m: m.text == "🔥 Get Method")
-def methods(m):
-    if not is_joined(m.from_user.id):
-        bot.send_message(m.chat.id, "❌ Pehlay channels join karo")
+    if not check_join(m.chat.id):  # چینل جوائن چیک
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton(f"Join @Junaidniz", url="https://t.me/Junaidniz"))
+        kb.add(types.InlineKeyboardButton(f"Join @jndtech1", url="https://t.me/jndtech1"))
+        kb.add(types.InlineKeyboardButton("✅ Verify", callback_data="verify"))
+        bot.send_message(m.chat.id, "❌ Join required channels", reply_markup=kb)
         return
 
-    rows = cur.execute("SELECT id, name FROM methods").fetchall()
-    if not rows:
-        bot.send_message(m.chat.id, "❌ No methods")
+    show_countries(m.chat.id)
+
+@bot.callback_query_handler(func=lambda c: c.data == "verify")
+def verify(c):
+    if check_join(c.from_user.id):
+        bot.answer_callback_query(c.id, "✅ Verified")
+        show_countries(c.from_user.id)
+    else:
+        bot.answer_callback_query(c.id, "❌ Join all channels", show_alert=True)
+
+# ================= USER PANEL =================
+def show_countries(cid):
+    if not NUMBERS:
+        bot.send_message(cid, "❌ No numbers available")
         return
 
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    for c in NUMBERS:
+        kb.add(types.InlineKeyboardButton(
+            f"{flag(c)} {c} ({len(NUMBERS[c])})",
+            callback_data=f"country|{c}"
+        ))
+    kb.add(types.InlineKeyboardButton("🔄 Change Country", callback_data="change"))
+    kb.add(types.InlineKeyboardButton("📢 OTP Group", url="https://t.me/+Aqq6X6oRWCdhM2Q0"))
+    bot.send_message(cid, "🌍 <b>Select Country</b>", reply_markup=kb)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("country|"))
+def pick_country(c):
+    country = c.data.split("|")[1]
+    num = NUMBERS[country].pop(0)
+    save(DATA_FILE, NUMBERS)
+
     kb = types.InlineKeyboardMarkup()
-    for mid, name in rows:
-        kb.add(types.InlineKeyboardButton(name, callback_data=f"sel_{mid}"))
-
-    bot.send_message(m.chat.id, "🔥 <b>Select Method</b>", reply_markup=kb)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("sel_"))
-def confirm(c):
-    mid = int(c.data.split("_")[1])
-    name = cur.execute("SELECT name FROM methods WHERE id=?", (mid,)).fetchone()[0]
-
-    kb = types.InlineKeyboardMarkup()
-    kb.add(
-        types.InlineKeyboardButton("✅ Confirm (7 Points)", callback_data=f"ord_{mid}"),
-        types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
-    )
+    kb.add(types.InlineKeyboardButton("🔄 Change Number", callback_data=f"country|{country}"))
+    kb.add(types.InlineKeyboardButton("🌍 Change Country", callback_data="change"))
 
     bot.edit_message_text(
-        f"🔥 <b>{name}</b>\n💰 Fee: {METHOD_COST} Points",
+        f"{flag(country)} <b>Your Number ({country})</b>\n\n📞 <code>{num}</code>\n\n⏳ Waiting for OTP...",
         c.message.chat.id,
         c.message.message_id,
         reply_markup=kb
     )
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("ord_"))
-def order(c):
-    uid = c.from_user.id
-    mid = int(c.data.split("_")[1])
-    u = get_user(uid)
+@bot.callback_query_handler(func=lambda c: c.data == "change")
+def change_country(c):
+    show_countries(c.from_user.id)
 
-    if u[1] < METHOD_COST:
-        bot.answer_callback_query(c.id, "❌ Not enough points", show_alert=True)
-        return
-
-    cut_points(uid, METHOD_COST)
-    name = cur.execute("SELECT name FROM methods WHERE id=?", (mid,)).fetchone()[0]
-
-    for a in ADMINS:
-        bot.send_message(
-            a,
-            f"📥 <b>New Order</b>\n"
-            f"👤 {uid}\n"
-            f"🔥 {name}\n"
-            f"💰 {METHOD_COST} Points"
-        )
-
-    bot.edit_message_text("✅ <b>Order placed</b>", c.message.chat.id, c.message.message_id)
-
-@bot.callback_query_handler(func=lambda c: c.data == "cancel")
-def cancel(c):
-    bot.edit_message_text("❌ Cancelled", c.message.chat.id, c.message.message_id)
-# ===========================================
-
-# ================= ADMIN =================
+# ================= ADMIN PANEL =================
 @bot.message_handler(commands=["admin"])
 def admin(m):
-    if not is_admin(m.from_user.id): return
-    bot.send_message(m.chat.id, "🛠 <b>Admin Panel</b>", reply_markup=admin_kb())
+    if not is_admin(m.chat.id): return
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("➕ Add Numbers", "📋 Number List")
+    kb.add("➕ Add Channel", "📢 Channels")
+    kb.add("❌ Close")
+    bot.send_message(m.chat.id, "🛠 Admin Panel", reply_markup=kb)
 
-@bot.message_handler(func=lambda m: m.text == "➕ Add Method")
-def add_method(m):
-    if not is_admin(m.from_user.id): return
-    msg = bot.send_message(m.chat.id, "Send method name")
-    bot.register_next_step_handler(msg, save_method)
+# ================= ADD CHANNEL =================
+@bot.message_handler(func=lambda m: m.text == "➕ Add Channel")
+def add_channel(m):
+    if not is_admin(m.chat.id): return
+    STATE[m.chat.id] = {"action": "add_channel"}
+    bot.send_message(m.chat.id, "📢 Send Channel Name")
 
-def save_method(m):
-    cur.execute("INSERT INTO methods (name) VALUES (?)", (m.text,))
-    db.commit()
-    bot.send_message(m.chat.id, "✅ Method added")
+@bot.message_handler(func=lambda m: isinstance(STATE.get(m.chat.id), dict) and "name" not in STATE[m.chat.id])
+def ch_name(m):
+    STATE[m.chat.id]["name"] = m.text
+    bot.send_message(m.chat.id, "🔗 Send Channel Link")
 
-@bot.message_handler(func=lambda m: m.text == "❌ Delete Method")
-def del_method(m):
-    if not is_admin(m.from_user.id): return
-    rows = cur.execute("SELECT id, name FROM methods").fetchall()
+@bot.message_handler(func=lambda m: isinstance(STATE.get(m.chat.id), dict) and "name" in STATE[m.chat.id])
+def ch_link(m):
+    ch = STATE[m.chat.id]
+    bot.send_message(m.chat.id, "🔘 Select Channel Type\n1. Private\n2. Folder\n3. Public", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("Private", "Folder", "Public"))
+    STATE[m.chat.id]["link"] = m.text
+
+@bot.message_handler(func=lambda m: m.text in ["Private", "Folder", "Public"])
+def ch_type(m):
+    if m.chat.id not in STATE: return
+    ch = STATE[m.chat.id]
+    ch["type"] = m.text
+    CHANNELS.append({
+        "name": ch["name"],
+        "link": ch["link"],
+        "id": ch["link"].replace("https://t.me/", "@"),
+        "type": ch["type"]
+    })
+    save(CHANNEL_FILE, CHANNELS)
+    bot.send_message(m.chat.id, "✅ Channel added")
+    STATE.pop(m.chat.id)
+
+# ================= CHANNEL MANAGEMENT =================
+@bot.message_handler(func=lambda m: m.text == "📢 Channels")
+def list_channels(m):
     kb = types.InlineKeyboardMarkup()
-    for mid, name in rows:
-        kb.add(types.InlineKeyboardButton(f"❌ {name}", callback_data=f"delm_{mid}"))
-    bot.send_message(m.chat.id, "Delete method:", reply_markup=kb)
+    for i, ch in enumerate(CHANNELS):
+        kb.add(types.InlineKeyboardButton(
+            f"{ch['name']} - {ch['type']} ❌",
+            callback_data=f"delch|{i}"
+        ))
+    bot.send_message(m.chat.id, "📢 Channel List", reply_markup=kb)
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("delm_"))
-def delm(c):
-    mid = int(c.data.split("_")[1])
-    cur.execute("DELETE FROM methods WHERE id=?", (mid,))
-    db.commit()
-    bot.answer_callback_query(c.id, "Deleted")
-# ===========================================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("delch|"))
+def del_ch(c):
+    i = int(c.data.split("|")[1])
+    CHANNELS.pop(i)
+    save(CHANNEL_FILE, CHANNELS)
+    bot.edit_message_text("✅ Channel deleted", c.message.chat.id, c.message.message_id)
 
+# ================= NUMBER ADDING =================
+@bot.message_handler(func=lambda m: m.text == "➕ Add Numbers")
+def add_numbers(m):
+    STATE[m.chat.id] = "country"
+    bot.send_message(m.chat.id, "🌍 Send Country Name")
+
+@bot.message_handler(func=lambda m: STATE.get(m.chat.id) == "country")
+def get_country(m):
+    STATE[m.chat.id] = {"country": m.text}
+    bot.send_message(m.chat.id, "📄 Send number.txt file")
+
+@bot.message_handler(content_types=["document"])
+def file_recv(m):
+    st = STATE.get(m.chat.id)
+    if not st or "country" not in st: return
+
+    c = st["country"]
+    file = bot.download_file(bot.get_file(m.document.file_id).file_path)
+    nums = file.decode().splitlines()
+
+    NUMBERS.setdefault(c, []).extend(nums)
+    save(DATA_FILE, NUMBERS)
+
+    bot.send_message(m.chat.id, f"✅ {len(nums)} numbers added to {c}")
+    STATE.pop(m.chat.id)
+
+# ================= NUMBER DELETE =================
+@bot.message_handler(func=lambda m: m.text == "📋 Number List")
+def list_numbers(m):
+    kb = types.InlineKeyboardMarkup()
+    for c in NUMBERS:
+        kb.add(types.InlineKeyboardButton(
+            f"{flag(c)} {c} ({len(NUMBERS[c])}) ❌",
+            callback_data=f"delnum|{c}"
+        ))
+    bot.send_message(m.chat.id, "📋 Tap to delete country", reply_markup=kb)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("delnum|"))
+def del_num(c):
+    ctry = c.data.split("|")[1]
+    del NUMBERS[ctry]
+    save(DATA_FILE, NUMBERS)
+    bot.edit_message_text(f"✅ {ctry} deleted", c.message.chat.id, c.message.message_id)
+
+@bot.message_handler(func=lambda m: m.text == "❌ Close")
+def close(m):
+    bot.send_message(m.chat.id, "Closed", reply_markup=types.ReplyKeyboardRemove())
+
+print("🤖 Bot Running")
 bot.infinity_polling()
