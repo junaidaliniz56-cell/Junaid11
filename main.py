@@ -72,25 +72,28 @@ def show_countries(cid):
             callback_data=f"country|{c}"
         ))
     kb.add(types.InlineKeyboardButton("🔄 Change Country", callback_data="change"))
-
     bot.send_message(cid, "🌍 <b>Select Country</b>", reply_markup=kb)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("country|"))
 def pick_country(c):
     country = c.data.split("|")[1]
+    if country not in NUMBERS or len(NUMBERS[country]) == 0:
+        bot.edit_message_text("❌ No numbers available for this country", c.message.chat.id, c.message.message_id)
+        return
+
     num = NUMBERS[country].pop(0)
     save(DATA_FILE, NUMBERS)
 
     # Create a list of numbers
     numbers_list = "\n".join([f"{i+1}. {num}" for i, num in enumerate(NUMBERS[country])])
 
-    # Now add OTP and Code group options below the numbers.
+    # Add Code Group button below the numbers.
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("🔄 Change Number", callback_data=f"country|{country}"))
     kb.add(types.InlineKeyboardButton("🌍 Change Country", callback_data="change"))
 
-    # Add only Code Group with the provided link
-    kb.add(types.InlineKeyboardButton("📲 Code Group", url="https://t.me/+Aqq6X6oRWCdhM2Q0"))
+    # Add Code Group button
+    kb.add(types.InlineKeyboardButton("📲 Code Group", callback_data="show_code_numbers"))
 
     bot.edit_message_text(
         f"{flag(country)} <b>Your Number ({country})</b>\n\n📞 <code>{num}</code>\n\n⏳ Waiting for OTP...\n\n{numbers_list}",
@@ -102,6 +105,23 @@ def pick_country(c):
 @bot.callback_query_handler(func=lambda c: c.data == "change")
 def change_country(c):
     show_countries(c.from_user.id)
+
+# ================= SHOW CODE GROUP =================
+@bot.callback_query_handler(func=lambda c: c.data == "show_code_numbers")
+def show_code_numbers(c):
+    # Only show Code Group link with no numbers
+    code_group_link = "https://t.me/+Aqq6X6oRWCdhM2Q0"  # Your provided Code Group link
+
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("🔄 Change Code Group", callback_data="show_code_numbers"))
+    kb.add(types.InlineKeyboardButton("🌍 Change Country", callback_data="change"))
+
+    bot.edit_message_text(
+        f"📲 Code Group\n\n🔗 <a href='{code_group_link}'>Join Code Group</a>",
+        c.message.chat.id,
+        c.message.message_id,
+        reply_markup=kb
+    )
 
 # ================= ADMIN PANEL =================
 @bot.message_handler(commands=["admin"])
