@@ -72,6 +72,7 @@ def show_countries(cid):
             callback_data=f"country|{c}"
         ))
     kb.add(types.InlineKeyboardButton("🔄 Change Country", callback_data="change"))
+
     bot.send_message(cid, "🌍 <b>Select Country</b>", reply_markup=kb)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("country|"))
@@ -80,13 +81,19 @@ def pick_country(c):
     num = NUMBERS[country].pop(0)
     save(DATA_FILE, NUMBERS)
 
+    # Create a list of numbers
+    numbers_list = "\n".join([f"{i+1}. {num}" for i, num in enumerate(NUMBERS[country])])
+
+    # Now add OTP and Code group options below the numbers.
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("🔄 Change Number", callback_data=f"country|{country}"))
-    kb.add(types.InlineKeyboardButton("📢 OTP Group", url="https://t.me/+Aqq6X6oRWCdhM2Q0"))
     kb.add(types.InlineKeyboardButton("🌍 Change Country", callback_data="change"))
 
+    # Add only Code Group with the provided link
+    kb.add(types.InlineKeyboardButton("📲 Code Group", url="https://t.me/+Aqq6X6oRWCdhM2Q0"))
+
     bot.edit_message_text(
-        f"{flag(country)} <b>Your Number ({country})</b>\n\n📞 <code>{num}</code>\n\n⏳ Waiting for OTP...",
+        f"{flag(country)} <b>Your Number ({country})</b>\n\n📞 <code>{num}</code>\n\n⏳ Waiting for OTP...\n\n{numbers_list}",
         c.message.chat.id,
         c.message.message_id,
         reply_markup=kb
@@ -138,24 +145,6 @@ def ch_type(m):
     save(CHANNEL_FILE, CHANNELS)
     bot.send_message(m.chat.id, "✅ Channel added")
     STATE.pop(m.chat.id)
-
-# ================= CHANNEL MANAGEMENT =================
-@bot.message_handler(func=lambda m: m.text == "📢 Channels")
-def list_channels(m):
-    kb = types.InlineKeyboardMarkup()
-    for i, ch in enumerate(CHANNELS):
-        kb.add(types.InlineKeyboardButton(
-            f"{ch['name']} - {ch['type']} ❌",
-            callback_data=f"delch|{i}"
-        ))
-    bot.send_message(m.chat.id, "📢 Channel List", reply_markup=kb)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("delch|"))
-def del_ch(c):
-    i = int(c.data.split("|")[1])
-    CHANNELS.pop(i)
-    save(CHANNEL_FILE, CHANNELS)
-    bot.edit_message_text("✅ Channel deleted", c.message.chat.id, c.message.message_id)
 
 # ================= NUMBER ADDING =================
 @bot.message_handler(func=lambda m: m.text == "➕ Add Numbers")
