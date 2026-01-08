@@ -77,23 +77,16 @@ def show_countries(cid):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("country|"))
 def pick_country(c):
     country = c.data.split("|")[1]
-    if country not in NUMBERS or len(NUMBERS[country]) == 0:
-        bot.edit_message_text("❌ No numbers available for this country", c.message.chat.id, c.message.message_id)
-        return
-
     num = NUMBERS[country].pop(0)
     save(DATA_FILE, NUMBERS)
-
-    numbers_list = "\n".join([f"{i+1}. {num}" for i, num in enumerate(NUMBERS[country])])
 
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("🔄 Change Number", callback_data=f"country|{country}"))
     kb.add(types.InlineKeyboardButton("🌍 Change Country", callback_data="change"))
-
-    kb.add(types.InlineKeyboardButton("📲 Code Group", callback_data="show_code_numbers"))
+    kb.add(types.InlineKeyboardButton("📱 OTP Group", url="https://t.me/+Aqq6X6oRWCdhM2Q0"))
 
     bot.edit_message_text(
-        f"{flag(country)} <b>Your Number ({country})</b>\n\n📞 <code>{num}</code>\n\n⏳ Waiting for OTP...\n\n{numbers_list}",
+        f"{flag(country)} <b>Your Number ({country})</b>\n\n📞 <code>{num}</code>\n\n⏳ Waiting for OTP...",
         c.message.chat.id,
         c.message.message_id,
         reply_markup=kb
@@ -103,24 +96,68 @@ def pick_country(c):
 def change_country(c):
     show_countries(c.from_user.id)
 
-# ================= SHOW CODE GROUP =================
-@bot.callback_query_handler(func=lambda c: c.data == "show_code_numbers")
-def show_code_numbers(c):
-    # Only show Code Group link with no numbers
-    code_group_link = "https://t.me/+Aqq6X6oRWCdhM2Q0"  # Your provided Code Group link
+# ================= ADMIN PANEL =================
+@bot.message_handler(commands=["admin"])
+def admin(m):
+    if not is_admin(m.chat.id): return
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("➕ Add Numbers", "📋 Number List")
+    kb.add("➕ Add Channel", "📢 Channels")
+    kb.add("❌ Close")
+    bot.send_message(m.chat.id, "🛠 Admin Panel", reply_markup=kb)
 
+# ================= ADD CHANNEL =================
+@bot.message_handler(func=lambda m: m.text == "➕ Add Channel")
+def add_channel(m):
+    if not is_admin(m.chat.id): return
+    STATE[m.chat.id] = {"action": "add_channel"}
+    bot.send_message(m.chat.id, "📢 Send Channel Name")
+
+@bot.message_handler(func=lambda m: isinstance(STATE.get(m.chat.id), dict) and "name" not in STATE[m.chat.id])
+def ch_name(m):
+    STATE[m.chat.id]["name"] = m.text
+    bot.send_message(m.chat.id, "🔗 Send Channel Link")
+
+@bot.message_handler(func=lambda m: isinstance(STATE.get(m.chat.id), dict) and "name" in STATE[m.chat.id])
+def ch_link(m):
+    ch = STATE[m.chat.id]
+    bot.send_message(m.chat.id, "🔘 Select Channel Type\n1. Private\n2. Folder\n3. Public", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("Private", "Folder", "Public"))
+    STATE[m.chat.id]["link"] = m.text
+
+@bot.message_handler(func=lambda m: m.text in ["Private", "Folder", "Public"])
+def ch_type(m):
+    if m.chat.id not in STATE: return
+    ch = STATE[m.chat.id]
+    ch["type"] = m.text
+    CHANNELS.append({
+        "name": ch["name"],
+        "link": ch["link"],
+        "id": ch["link"].replace("https://t.me/", "@"),
+        "type": ch["type"]
+    })
+    save(CHANNEL_FILE, CHANNELS)
+    bot.send_message(m.chat.id, "✅ Channel added")
+    STATE.pop(m.chat.id)
+
+# ================= CHANNEL MANAGEMENT =================
+@bot.message_handler(func=lambda m: m.text == "📢 Channels")
+def list_channels(m):
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("🔄 Change Code Group", callback_data="show_code_numbers"))
-    kb.add(types.InlineKeyboardButton("🌍 Change Country", callback_data="change"))
+    for i, ch in enumerate(CHANNELS):
+        kb.add(types.InlineKeyboardButton(
+            f"{ch['name']} - {ch['type']} ❌",
+            callback_data=f"delch|{i}"
+        ))
+    bot.send_message(m.chat.id, "📢 Channel List", reply_markup=kb)
 
-    bot.edit_message_text(
-        f"📲 Code Group\n\n🔗 <a href='{code_group_link}'>Join Code Group</a>",
-        c.message.chat.id,
-        c.message.message_id,
-        reply_markup=kb
-    )
+@bot.callback_query_handler(func=lambda c: c.data.startswith("delch|"))
+def del_ch(c):
+    i = int(c.data.split("|")[1])
+    CHANNELS.pop(i)
+    save(CHANNEL_FILE, CHANNELS)
+    bot.edit_message_text("✅ Channel deleted", c.message.chat.id, c.message.message_id)
 
-# ================= ADD NUMBERS =================
+# ================= NUMBER ADDING =================
 @bot.message_handler(func=lambda m: m.text == "➕ Add Numbers")
 def add_numbers(m):
     STATE[m.chat.id] = "country"
@@ -129,33 +166,21 @@ def add_numbers(m):
 @bot.message_handler(func=lambda m: STATE.get(m.chat.id) == "country")
 def get_country(m):
     STATE[m.chat.id] = {"country": m.text}
-    bot.send_message(m.chat.id, "📄 Send numbers.txt file")
+    bot.send_message(m.chat.id, "📄 Send number.txt file")
 
 @bot.message_handler(content_types=["document"])
 def file_recv(m):
     st = STATE.get(m.chat.id)
     if not st or "country" not in st: return
 
-    # Get the country from STATE
-    country = st["country"]
-
-    # Download the file
+    c = st["country"]
     file = bot.download_file(bot.get_file(m.document.file_id).file_path)
-
-    # Decode and split by lines
     nums = file.decode().splitlines()
 
-    # Ensure NUMBERS exists for the country
-    if country not in NUMBERS:
-        NUMBERS[country] = []
-
-    # Add numbers to the NUMBERS dictionary for the specific country
-    NUMBERS[country].extend(nums)
-
-    # Save the updated NUMBERS dictionary to the file
+    NUMBERS.setdefault(c, []).extend(nums)
     save(DATA_FILE, NUMBERS)
 
-    bot.send_message(m.chat.id, f"✅ {len(nums)} numbers added to {country}")
+    bot.send_message(m.chat.id, f"✅ {len(nums)} numbers added to {c}")
     STATE.pop(m.chat.id)
 
 # ================= NUMBER DELETE =================
