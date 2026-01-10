@@ -26,7 +26,7 @@ def is_admin(uid): return uid in ADMINS
 
 # ================= JOIN CHECK =================
 def check_join(uid):
-    required_channels = ["@Junaidniz", "@jndtech1"]
+    required_channels = ["@DARKXDISCUSS", "@Junaidniz"]
     for ch in required_channels:
         try:
             m = bot.get_chat_member(ch, uid)
@@ -39,10 +39,14 @@ def check_join(uid):
 def start(m):
     if not check_join(m.chat.id):
         kb = types.InlineKeyboardMarkup()
-        kb.add(types.InlineKeyboardButton("Join @Junaidniz", url="https://t.me/Junaidniz"))
-        kb.add(types.InlineKeyboardButton("Join @jndtech1", url="https://t.me/jndtech1"))
-        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/+wp1jTrshcwY4NDI0"))
-        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/+i8Q1z0Zq9_g3ZDI9"))
+        kb.add(types.InlineKeyboardButton("Join", url="https://t.me/+i8Q1z0Zq9_g3ZDI9"))
+        kb.add(types.InlineKeyboardButton("Join", url="https://t.me/Junaidniz"))
+        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/+YbqOLJJmDzszYzBl"))
+        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/X278D"))
+        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/DARKXDISCUSS"))
+        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/tips_tricks_shop"))
+        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/addlist/l7SyMc4TNH1iNzA0"))
+        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/addlist/_3CpmlphijcwNWQ0"))
         kb.add(types.InlineKeyboardButton("✅ Verify", callback_data="verify"))
         bot.send_message(m.chat.id, "❌ <b>Join required channels first!</b>", reply_markup=kb)
         return
