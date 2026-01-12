@@ -42,6 +42,7 @@ def start(m):
         kb.add(types.InlineKeyboardButton("Join @Junaidniz", url="https://t.me/Junaidniz"))
         kb.add(types.InlineKeyboardButton("Join @jndtech1", url="https://t.me/jndtech1"))
         kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/+wp1jTrshcwY4NDI0"))
+        kb.add(types.InlineKeyboardButton(f"Join", url="https://t.me/XhunterXSigma"))
         kb.add(types.InlineKeyboardButton(f"Join", url="https://whatsapp.com/channel/0029Vaf1X3f6hENsP7dKm81z"))
         kb.add(types.InlineKeyboardButton("✅ Verify", callback_data="verify"))
         bot.send_message(m.chat.id, "❌ <b>Join required channels first!</b>", reply_markup=kb)
