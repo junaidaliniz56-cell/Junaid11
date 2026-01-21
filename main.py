@@ -3,7 +3,7 @@ import sqlite3
 import os
 from telebot import types
 
-BOT_TOKEN = "8433897615:AAFGshJ6sD9R_31niIvObq_hExAVXrFmr6A"
+BOT_TOKEN = "8390982569:AAGpJ3PgZOSiiX1U1PA-e5gbi53gZKD5uIM"
 ADMINS = [7011937754]
 
 # بوٹ کو تھریڈز کے ساتھ چلائیں تاکہ سپیڈ تیز ہو
