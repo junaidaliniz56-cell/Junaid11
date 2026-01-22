@@ -3,7 +3,7 @@ import sqlite3
 import os
 from telebot import types
 
-BOT_TOKEN = "8390982569:AAGpJ3PgZOSiiX1U1PA-e5gbi53gZKD5uIM"
+BOT_TOKEN = "8379981805:AAEn4lm6o8fsKQdyqX96Q9xUh_z5tZMWIQA"
 ADMINS = [7011937754]
 
 # بوٹ کو تھریڈز کے ساتھ چلائیں تاکہ سپیڈ تیز ہو
@@ -26,7 +26,7 @@ def is_admin(uid): return uid in ADMINS
 
 # ================= JOIN CHECK =================
 def check_join(uid):
-    required_channels = ["@funtoken198", "@jndtech1"]
+    required_channels = ["@Junaidniz", "@backup_free_money"]
     for ch in required_channels:
         try:
             m = bot.get_chat_member(ch, uid)
@@ -39,11 +39,11 @@ def check_join(uid):
 def start(m):
     if not check_join(m.chat.id):
         kb = types.InlineKeyboardMarkup()
-        kb.add(types.InlineKeyboardButton("📢 Join", url="https://t.me/junaidniz"))
-        kb.add(types.InlineKeyboardButton("📢 Join", url="https://t.me/jndtech1"))
-        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://t.me/funtoken198"))
-        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://t.me/XhunterXSigma"))
-        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://whatsapp.com/channel/0029Vaf1X3f6hENsP7dKm81z"))
+        kb.add(types.InlineKeyboardButton("📢 Join", url="https://t.me/backup_free_money"))
+        kb.add(types.InlineKeyboardButton("📢 Join", url="https://t.me/+33ZtneVfP7ZlMTU9"))
+        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://t.me/+d5Y2sg8PefU1OTc1"))
+        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://t.me/Junaidniz"))
+        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://chat.whatsapp.com/FUZgye5T8qR2vD1NezeYcj"))
         kb.add(types.InlineKeyboardButton("✅ Verify", callback_data="verify"))
         bot.send_message(m.chat.id, "❌ <b>Join required channels first!</b>", reply_markup=kb)
         return
@@ -89,7 +89,7 @@ def pick_country(c):
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("🔄 Change Number", callback_data=f"get|{country}"))
         kb.add(types.InlineKeyboardButton("🌍 Change Country", callback_data="change"))
-        kb.add(types.InlineKeyboardButton("📱 OTP Group", url="https://t.me/+Aqq6X6oRWCdhM2Q0"))
+        kb.add(types.InlineKeyboardButton("📱 OTP Group", url="https://t.me/+CCy8ucTTgIRjNTc9"))
 
         bot.edit_message_text(
             f"🌍 <b>Your Number ({country})</b>\n\n📞 <code>{phone}</code>\n\n⏳ Waiting for OTP...",
