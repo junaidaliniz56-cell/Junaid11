@@ -26,7 +26,7 @@ def is_admin(uid): return uid in ADMINS
 
 # ================= JOIN CHECK =================
 def check_join(uid):
-    required_channels = ["@Junaidniz", "@backup_free_money"]
+    required_channels = ["@Junaidniz", "@Sms_number_channel"]
     for ch in required_channels:
         try:
             m = bot.get_chat_member(ch, uid)
@@ -41,7 +41,7 @@ def start(m):
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton("📢 Join", url="https://t.me/backup_free_money"))
         kb.add(types.InlineKeyboardButton("📢 Join", url="https://t.me/+33ZtneVfP7ZlMTU9"))
-        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://t.me/+d5Y2sg8PefU1OTc1"))
+        kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://t.me/Sms_number_channel"))
         kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://t.me/Junaidniz"))
         kb.add(types.InlineKeyboardButton(f"📢 Join", url="https://chat.whatsapp.com/FUZgye5T8qR2vD1NezeYcj"))
         kb.add(types.InlineKeyboardButton("✅ Verify", callback_data="verify"))
